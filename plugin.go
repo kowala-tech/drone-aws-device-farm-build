@@ -157,6 +157,7 @@ func uploadFile(file string, uploadResponse *devicefarm.CreateUploadOutput, svc 
 	err := c.Run()
 	if err != nil {
 		fmt.Println("Error: ", err)
+		os.Exit(1)
 	}
 	fmt.Println("Listo")
 }
