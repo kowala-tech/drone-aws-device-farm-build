@@ -3,162 +3,108 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/exec"
-	"strings"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/devicefarm"
+	log "github.com/Sirupsen/logrus"
+	"github.com/urfave/cli"
 )
 
+var build string
+
 func main() {
-	fmt.Println("Begin to schedule test run in AWS Device Farm'")
-	region := "us-west-2"
-	appDirectory := "./"
-	appName := "app-release.apk"
-	testsDirectory := "./"
-	testsName := "features.zip"
-	testProject := "kowalaAndroidTest"
-	devicePoolname := "KOWALAANDROID"
-	uploadAppType := "ANDROID_APP"
-	testTypeUpload := "CALABASH_TEST_PACKAGE"
-	testTypeRun := "CALABASH"
+	app := cli.NewApp()
+	app.Name = "Beanstalk deployment plugin"
+	app.Usage = "beanstalk deployment plugin"
+	app.Action = run
+	app.Version = fmt.Sprintf("1.0.0+%s", build)
+	app.Flags = []cli.Flag{
 
-	fmt.Println(region)
-	fmt.Println(appDirectory)
-	fmt.Println(appName)
-	fmt.Println(testsDirectory)
-	fmt.Println(testsName)
-	fmt.Println(testProject)
-	fmt.Println(devicePoolname)
-	fmt.Println(uploadAppType)
-	fmt.Println(testTypeUpload)
-	fmt.Println(testTypeRun)
-
-	sess := session.Must(session.NewSession(&aws.Config{
-		Region: aws.String(region),
-	}))
-
-	svc := devicefarm.New(sess)
-
-	project := getTestProject(testProject, svc)
-	fmt.Println("project", project)
-	pool := getDevicePool(devicePoolname, project, svc)
-	fmt.Println("pool", pool)
-
-	uploadResponseTests := createUpload(testsName, testTypeUpload, project, svc)
-	fmt.Println("uploadResponseTests", uploadResponseTests)
-	s := []string{testsDirectory, testsName}
-	uploadFile(strings.Join(s, ""), uploadResponseTests, svc)
-	testsSuccededToUpload := false
-	for {
-		testsSuccededToUpload = checkToSeeIfFileSucceeded(uploadResponseTests, svc)
-		if testsSuccededToUpload {
-			break
-		}
+		cli.StringFlag{
+			Name:   "access-key",
+			Usage:  "aws access key",
+			EnvVar: "PLUGIN_ACCESS_KEY,AWS_ACCESS_KEY_ID",
+		},
+		cli.StringFlag{
+			Name:   "secret-key",
+			Usage:  "aws secret key",
+			EnvVar: "PLUGIN_SECRET_KEY,AWS_SECRET_ACCESS_KEY",
+		},
+		cli.StringFlag{
+			Name:   "region",
+			Usage:  "aws region",
+			Value:  "us-west-2",
+			EnvVar: "PLUGIN_REGION",
+		},
+		cli.StringFlag{
+			Name:   "app-directory",
+			Usage:  "Location directory of app",
+			EnvVar: "PLUGIN_APP_DIRECTORY",
+		},
+		cli.StringFlag{
+			Name:   "app-name",
+			Usage:  "Name of app to upload. With extension",
+			EnvVar: "PLUGIN_APP_NAME",
+		},
+		cli.StringFlag{
+			Name:   "tests-directory",
+			Usage:  "Location directory of tests",
+			EnvVar: "PLUGIN_TEST_DIRECTORY",
+		},
+		cli.StringFlag{
+			Name:   "tests-name",
+			Usage:  "Name of the .zip file. With extension",
+			EnvVar: "PLUGIN_TESTS_NAME",
+		},
+		cli.StringFlag{
+			Name:   "test-project",
+			Usage:  "Name of the AWS Device farm project where you want to upload the app, tests, and schedule the run",
+			EnvVar: "PLUGIN_TEST_PROJECT",
+		},
+		cli.StringFlag{
+			Name:   "device-poolname",
+			Usage:  "Name of the AWS device farm Device pool name to use when running the tests",
+			EnvVar: "PLUGIN_DEVICE_POOLNAME",
+		},
+		cli.StringFlag{
+			Name:   "upload-app-type",
+			Usage:  "The type of the app that is going to be tested",
+			EnvVar: "PLUGIN_UPLOAD_APP_TYPE",
+		},
+		cli.StringFlag{
+			Name:   "test-type-upload",
+			Usage:  "The type tests that you are uploading",
+			EnvVar: "PLUGIN_TESTS_TYPE",
+		},
+		cli.StringFlag{
+			Name:   "test-type-run",
+			Usage:  "Type of the tests",
+			EnvVar: "PLUGIN_TEST_TYPE_RUN",
+		},
+		cli.BoolTFlag{
+			Name:   "yaml-verified",
+			Usage:  "Ensure the yaml was signed",
+			EnvVar: "DRONE_YAML_VERIFIED",
+		},
 	}
-
-	uploadResponseApp := createUpload(appName, uploadAppType, project, svc)
-	fmt.Println("uploadResponseApp", uploadResponseApp)
-	appLocation := []string{appDirectory, appName}
-	uploadFile(strings.Join(appLocation, ""), uploadResponseApp, svc)
-	appSuccededToUpload := false
-	for {
-		appSuccededToUpload = checkToSeeIfFileSucceeded(uploadResponseApp, svc)
-		if appSuccededToUpload {
-			break
-		}
+	if err := app.Run(os.Args); err != nil {
+		log.Fatal(err)
 	}
-	run := scheduleRun("Run", pool, project, uploadResponseApp, uploadResponseTests, testTypeRun, svc)
-	fmt.Println("Run", run)
-	fmt.Println("Schedule test run completed")
 }
-
-func scheduleRun(runName string, devicePool *devicefarm.DevicePool, project *devicefarm.Project, apkUpload *devicefarm.CreateUploadOutput, uploadTests *devicefarm.CreateUploadOutput, testType string, svc *devicefarm.DeviceFarm) *devicefarm.ScheduleRunOutput {
-	result, err := svc.ScheduleRun(&devicefarm.ScheduleRunInput{Name: aws.String(runName),
-		DevicePoolArn: aws.String(*devicePool.Arn),
-		ProjectArn:    aws.String(*project.Arn),
-		AppArn:        aws.String(*apkUpload.Upload.Arn),
-		Test: &devicefarm.ScheduleRunTest{
-			Type:           aws.String(testType),
-			TestPackageArn: aws.String(*uploadTests.Upload.Arn)}})
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-	return result
-}
-
-func checkToSeeIfFileSucceeded(uploadResponse *devicefarm.CreateUploadOutput, svc *devicefarm.DeviceFarm) bool {
-	result, err := svc.GetUpload(&devicefarm.GetUploadInput{Arn: aws.String(*uploadResponse.Upload.Arn)})
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-	fmt.Println("resultado", result)
-
-	if strings.ToUpper(*result.Upload.Status) == "SUCCEEDED" {
-		return true
-	} else if strings.ToUpper(*result.Upload.Status) == "FAILED" {
-		fmt.Println("The file failed to upload to AWS", result.Upload)
-		os.Exit(1)
-	}
-	return false
-}
-
-func uploadFile(file string, uploadResponse *devicefarm.CreateUploadOutput, svc *devicefarm.DeviceFarm) {
-	fmt.Println("file", file)
-	c := exec.Command("curl", "-T", file, *uploadResponse.Upload.Url)
-	c.Stdout = os.Stdout
-	c.Stderr = os.Stderr
-	err := c.Run()
-	if err != nil {
-		fmt.Println("Error: ", err)
-	}
-	fmt.Println("Listo")
-}
-
-func createUpload(filename string, typeUpload string, project *devicefarm.Project, svc *devicefarm.DeviceFarm) *devicefarm.CreateUploadOutput {
-	result, err := svc.CreateUpload(&devicefarm.CreateUploadInput{Name: aws.String(filename), Type: aws.String(typeUpload), ProjectArn: aws.String(*project.Arn)})
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-	return result
-}
-
-func getDevicePool(devicePoolname string, project *devicefarm.Project, svc *devicefarm.DeviceFarm) *devicefarm.DevicePool {
-	result, err := svc.ListDevicePools(&devicefarm.ListDevicePoolsInput{Arn: aws.String(*project.Arn)})
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
+func run(c *cli.Context) error {
+	plugin := Plugin{
+		Key:            c.String("access-key"),
+		Secret:         c.String("secret-key"),
+		Region:         c.String("region"),
+		AppDirectory:   c.String("app-directory"),
+		AppName:        c.String("app-name"),
+		TestsDirectory: c.String("tests-directory"),
+		TestsName:      c.String("tests-name"),
+		TestProject:    c.String("test-project"),
+		DevicePoolname: c.String("device-poolname"),
+		UploadAppType:  c.String("upload-app-type"),
+		TestTypeUpload: c.String("test-type-upload"),
+		TestTypeRun:    c.String("test-type-run"),
+		YamlVerified:   c.BoolT("yaml-verified"),
 	}
 
-	for _, pool := range result.DevicePools {
-		if strings.ToUpper(*pool.Name) == devicePoolname {
-			return pool
-		}
-	}
-
-	fmt.Println("There was no device pool with that name")
-	os.Exit(1)
-	return nil
-}
-
-func getTestProject(testProjectName string, svc *devicefarm.DeviceFarm) *devicefarm.Project {
-	result, err := svc.ListProjects(nil)
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-
-	for _, project := range result.Projects {
-		if *project.Name == testProjectName {
-			return project
-		}
-	}
-
-	fmt.Println("There was no project with that name")
-	os.Exit(1)
-	return nil
+	return plugin.Exec()
 }
