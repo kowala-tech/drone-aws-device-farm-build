@@ -1,7 +1,5 @@
-FROM alpine:3.6 as alpine
+FROM byrnedo/alpine-curl as alpine
 RUN apk add -U --no-cache ca-certificates
-
-FROM scratch
 
 ENV GODEBUG=netdns=go
 
