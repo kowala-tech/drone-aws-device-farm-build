@@ -12,8 +12,8 @@ var build string
 
 func main() {
 	app := cli.NewApp()
-	app.Name = "Beanstalk deployment plugin"
-	app.Usage = "beanstalk deployment plugin"
+	app.Name = "AWS device farm drone plugin"
+	app.Usage = "AWS device farm drone plugin"
 	app.Action = run
 	app.Version = fmt.Sprintf("1.0.0+%s", build)
 	app.Flags = []cli.Flag{
@@ -35,19 +35,9 @@ func main() {
 			EnvVar: "PLUGIN_REGION",
 		},
 		cli.StringFlag{
-			Name:   "app-directory",
-			Usage:  "Location directory of app",
-			EnvVar: "PLUGIN_APP_DIRECTORY",
-		},
-		cli.StringFlag{
 			Name:   "app-name",
 			Usage:  "Name of app to upload. With extension",
 			EnvVar: "PLUGIN_APP_NAME",
-		},
-		cli.StringFlag{
-			Name:   "tests-directory",
-			Usage:  "Location directory of tests",
-			EnvVar: "PLUGIN_TEST_DIRECTORY",
 		},
 		cli.StringFlag{
 			Name:   "tests-name",
@@ -94,9 +84,7 @@ func run(c *cli.Context) error {
 		Key:            c.String("access-key"),
 		Secret:         c.String("secret-key"),
 		Region:         c.String("region"),
-		AppDirectory:   c.String("app-directory"),
 		AppName:        c.String("app-name"),
-		TestsDirectory: c.String("tests-directory"),
 		TestsName:      c.String("tests-name"),
 		TestProject:    c.String("test-project"),
 		DevicePoolname: c.String("device-poolname"),

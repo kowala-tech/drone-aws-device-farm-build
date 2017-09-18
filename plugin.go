@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -20,9 +21,7 @@ type Plugin struct {
 	Region       string
 	YamlVerified bool
 
-	AppDirectory   string
 	AppName        string
-	TestsDirectory string
 	TestsName      string
 	TestProject    string
 	DevicePoolname string
@@ -39,10 +38,6 @@ func (p *Plugin) Exec() error {
 	conf := &aws.Config{
 		Region: aws.String(p.Region),
 	}
-
-	fmt.Println("*conf.Region", *conf.Region)
-	fmt.Println("p.Key", p.Key)
-	fmt.Println("p.Secret", p.Secret)
 
 	// Use key and secret if provided otherwise fall back to ec2 instance profile
 	if p.Key != "" && p.Secret != "" {
@@ -71,11 +66,8 @@ func (p *Plugin) Exec() error {
 	fmt.Println("AccessKeyID", cred.AccessKeyID)
 	fmt.Println("SecretAccessKey", cred.SecretAccessKey)
 	fmt.Println("ProviderName", cred.ProviderName)
-	// fmt.Println("ProviderName", conf.Credentials.Get().ProviderName)
-	// fmt.Println("SecretAccessKey", conf.Credentials.Get().SecretAccessKey)
-
-	// sess := session.Must(session.NewSession(conf))
-	// sess := s3.New(session.New(), conf)
+	fmt.Println("path.Base(p.TestsName)", path.Base(p.TestsName))
+	fmt.Println("path.Base(p.AppName)", path.Base(p.AppName))
 
 	fmt.Println("2")
 
@@ -87,10 +79,9 @@ func (p *Plugin) Exec() error {
 	pool := getDevicePool(p.DevicePoolname, project, svc)
 	fmt.Println("pool", pool)
 
-	uploadResponseTests := createUpload(p.TestsName, p.TestTypeUpload, project, svc)
+	uploadResponseTests := createUpload(path.Base(p.TestsName), p.TestTypeUpload, project, svc)
 	fmt.Println("uploadResponseTests", uploadResponseTests)
-	s := []string{p.TestsDirectory, p.TestsName}
-	uploadFile(strings.Join(s, ""), uploadResponseTests, svc)
+	uploadFile(p.TestsName, uploadResponseTests, svc)
 	testsSuccededToUpload := false
 	for {
 		testsSuccededToUpload = checkToSeeIfFileSucceeded(uploadResponseTests, svc)
@@ -99,10 +90,9 @@ func (p *Plugin) Exec() error {
 		}
 	}
 
-	uploadResponseApp := createUpload(p.AppName, p.UploadAppType, project, svc)
+	uploadResponseApp := createUpload(path.Base(p.AppName), p.UploadAppType, project, svc)
 	fmt.Println("uploadResponseApp", uploadResponseApp)
-	appLocation := []string{p.AppDirectory, p.AppName}
-	uploadFile(strings.Join(appLocation, ""), uploadResponseApp, svc)
+	uploadFile(p.AppName, uploadResponseApp, svc)
 	appSuccededToUpload := false
 	for {
 		appSuccededToUpload = checkToSeeIfFileSucceeded(uploadResponseApp, svc)
