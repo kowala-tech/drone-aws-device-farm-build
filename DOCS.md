@@ -8,9 +8,9 @@ override the default configuration with the following parameters:
 * `tests_name` - The location and filename of the tests. For example, src/e2eTests/features.zip
 * `test_project` - The name of the AWS device farm project
 * `device_poolname` - the name of the Device Pool
-* `upload_app_type` - The app upload type. Refer to `http://docs.aws.amazon.com/devicefarm/latest/APIReference/API_CreateUpload.html#API_CreateUpload_RequestSyntax`
-* `tests_type` - The test upload type. Refer to `http://docs.aws.amazon.com/devicefarm/latest/APIReference/API_CreateUpload.html#API_CreateUpload_RequestSyntax`
-* `test_type_run` - The test's type. Refer to `http://docs.aws.amazon.com/devicefarm/latest/APIReference/API_ScheduleRunTest.html`
+* `upload_app_type` - The app upload type. Refer to [AWS Create upload documentation](http://docs.aws.amazon.com/devicefarm/latest/APIReference/API_CreateUpload.html#API_CreateUpload_RequestSyntax)
+* `tests_type` - The test upload type. Refer to [AWS Create upload documentation](http://docs.aws.amazon.com/devicefarm/latest/APIReference/API_CreateUpload.html#API_CreateUpload_RequestSyntax)
+* `test_type_run` - The test's type. Refer to [AWS Schedule a Run documentation](http://docs.aws.amazon.com/devicefarm/latest/APIReference/API_ScheduleRunTest.html)
 
 ## Example
 
