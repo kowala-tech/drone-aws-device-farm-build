@@ -18,14 +18,16 @@ The following is a sample configuration in your .drone.yml file:
 
 ```yaml
 deploy:
-  beanstalk:
-    image: peloton/drone-elasctic-beanstalk
-    access_key: 970d28f4dd477bc184fbd10b376de753
-    secret_key: 9c5785d3ece6a9cdefa42eb99b58986f9095ff1c
-    region: us-east-1
-    version_label: v1
-    description: Deployed with DroneCI
-    auto_create: true
-    bucket_name: my-bucket-name
-    bucket_key: 970d28f4dd477bc184fbd10b376de753
+  behavior-testing:
+        image: plugins/drone-aws-device-farm
+        access_key: hjwgjhgjhwe
+        secret_key: werkjhwekjrhweuyiuwerbyiuweyrui
+        region: us-west-2
+        app_name: src/folder/native/app_release.apk
+        tests_name: src/e2eTests/features.zip
+        test_project: androidTestProject
+        device_poolname: MostUsedDevicesPool
+        upload_app_type: ANDROID_APP
+        tests_type: CALABASH_TEST_PACKAGE
+        test_type_run: CALABASH
 ```
