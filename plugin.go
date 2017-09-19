@@ -64,7 +64,7 @@ func (p *Plugin) Exec() error {
 		return err
 	}
 	//upload app to AWS device farm
-	uploadResponseApp, err := handleUpload(p.AppName, p.TestTypeUpload, project, svc)
+	uploadResponseApp, err := handleUpload(p.AppName, p.UploadAppType, project, svc)
 	if err != nil {
 		return err
 	}
