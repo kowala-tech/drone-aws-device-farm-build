@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -42,132 +43,133 @@ func (p *Plugin) Exec() error {
 	// Use key and secret if provided otherwise fall back to ec2 instance profile
 	if p.Key != "" && p.Secret != "" {
 		conf.Credentials = credentials.NewStaticCredentials(p.Key, p.Secret, "")
-	} else if p.YamlVerified != true {
-		return errors.New("Security issue: When using instance role you must have the yaml verified")
-	}
 
-	//create Device Farmr service
+	}
+	//create Device Farm service
 	svc := devicefarm.New(session.New(), conf)
 
-	//Get AWS Test project
-	project := getTestProject(p.TestProject, svc)
+	//Get AWS device farm Test project
+	project, err := getTestProject(p.TestProject, svc)
+	if err != nil {
+		return err
+	}
 	//Get AWS device farm Device pool used for this test
-	pool := getDevicePool(p.DevicePoolname, project, svc)
-
-	//Create test upload object
-	uploadResponseTests := createUpload(path.Base(p.TestsName), p.TestTypeUpload, project, svc)
-	//Upload the tests package to AWS
-	uploadFile(p.TestsName, uploadResponseTests, svc)
-	//Wait until AWS finishes to process the file
-	testsSuccededToUpload := false
-	for {
-		testsSuccededToUpload = checkToSeeIfFileSucceeded(uploadResponseTests, svc)
-		if testsSuccededToUpload {
-			break
-		}
+	pool, err := getDevicePool(p.DevicePoolname, project, svc)
+	if err != nil {
+		return err
 	}
-	//Create app upload object
-	uploadResponseApp := createUpload(path.Base(p.AppName), p.UploadAppType, project, svc)
-	//Upload the app file to AWS
-	uploadFile(p.AppName, uploadResponseApp, svc)
-	//Wait until AWS finishes to process the file
-	appSuccededToUpload := false
-	for {
-		appSuccededToUpload = checkToSeeIfFileSucceeded(uploadResponseApp, svc)
-		if appSuccededToUpload {
-			break
-		}
+	//upload tests to AWS device farm
+	uploadResponseTests, err := handleUpload(p.TestsName, p.TestTypeUpload, project, svc)
+	if err != nil {
+		return err
 	}
-	//Scedule the test run
-	scheduleRun("Run", pool, project, uploadResponseApp, uploadResponseTests, p.TestTypeRun, svc)
+	//upload app to AWS device farm
+	uploadResponseApp, err := handleUpload(p.AppName, p.TestTypeUpload, project, svc)
+	if err != nil {
+		return err
+	}
+	//Schedule the test run
+	_, err = scheduleRun("Run", pool, project, uploadResponseApp, uploadResponseTests, p.TestTypeRun, svc)
+	if err != nil {
+		return err
+	}
 	fmt.Println("Schedule test run completed")
 
 	return nil
 }
 
-func scheduleRun(runName string, devicePool *devicefarm.DevicePool, project *devicefarm.Project, apkUpload *devicefarm.CreateUploadOutput, uploadTests *devicefarm.CreateUploadOutput, testType string, svc *devicefarm.DeviceFarm) *devicefarm.ScheduleRunOutput {
-	result, err := svc.ScheduleRun(&devicefarm.ScheduleRunInput{Name: aws.String(runName),
+func scheduleRun(runName string, devicePool *devicefarm.DevicePool, project *devicefarm.Project, apkUpload *devicefarm.CreateUploadOutput, uploadTests *devicefarm.CreateUploadOutput, testType string, svc *devicefarm.DeviceFarm) (*devicefarm.ScheduleRunOutput, error) {
+	return svc.ScheduleRun(&devicefarm.ScheduleRunInput{Name: aws.String(runName),
 		DevicePoolArn: aws.String(*devicePool.Arn),
 		ProjectArn:    aws.String(*project.Arn),
 		AppArn:        aws.String(*apkUpload.Upload.Arn),
 		Test: &devicefarm.ScheduleRunTest{
 			Type:           aws.String(testType),
 			TestPackageArn: aws.String(*uploadTests.Upload.Arn)}})
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-	return result
 }
 
-func checkToSeeIfFileSucceeded(uploadResponse *devicefarm.CreateUploadOutput, svc *devicefarm.DeviceFarm) bool {
+func handleUpload(filename string, uploadType string, project *devicefarm.Project, svc *devicefarm.DeviceFarm) (*devicefarm.CreateUploadOutput, error) {
+	//Create app upload object
+	uploadResponse, err := createUpload(path.Base(filename), uploadType, project, svc)
+	if err != nil {
+		return nil, err
+	}
+	//Upload the app file to AWS
+	err = uploadFile(filename, uploadResponse, svc)
+	if err != nil {
+		return nil, err
+	}
+
+	//Wait until AWS finishes to process the file
+	//Poll AWS every 2 seconds if the file was processed and succeeded
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+
+		filesuccededToUpload, err := checkToSeeIfFileSucceeded(uploadResponse, svc)
+		if err != nil {
+			return nil, err
+		}
+
+		if filesuccededToUpload {
+			break
+		}
+	}
+
+	return uploadResponse, nil
+}
+
+func checkToSeeIfFileSucceeded(uploadResponse *devicefarm.CreateUploadOutput, svc *devicefarm.DeviceFarm) (bool, error) {
 	result, err := svc.GetUpload(&devicefarm.GetUploadInput{Arn: aws.String(*uploadResponse.Upload.Arn)})
 	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
+		return false, err
 	}
 
 	if strings.ToUpper(*result.Upload.Status) == "SUCCEEDED" {
-		return true
+		return true, nil
 	} else if strings.ToUpper(*result.Upload.Status) == "FAILED" {
-		fmt.Println("The file failed to upload to AWS", result.Upload)
-		os.Exit(1)
+		return false, errors.New(*result.Upload.Metadata)
 	}
-	return false
+	return false, nil
 }
 
-func uploadFile(file string, uploadResponse *devicefarm.CreateUploadOutput, svc *devicefarm.DeviceFarm) {
+func uploadFile(file string, uploadResponse *devicefarm.CreateUploadOutput, svc *devicefarm.DeviceFarm) error {
 	c := exec.Command("curl", "-T", file, *uploadResponse.Upload.Url)
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
-	err := c.Run()
-	if err != nil {
-		fmt.Println("Error: ", err)
-		os.Exit(1)
-	}
+	return c.Run()
 }
 
-func createUpload(filename string, typeUpload string, project *devicefarm.Project, svc *devicefarm.DeviceFarm) *devicefarm.CreateUploadOutput {
-	result, err := svc.CreateUpload(&devicefarm.CreateUploadInput{Name: aws.String(filename), Type: aws.String(typeUpload), ProjectArn: aws.String(*project.Arn)})
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-	return result
+func createUpload(filename string, typeUpload string, project *devicefarm.Project, svc *devicefarm.DeviceFarm) (*devicefarm.CreateUploadOutput, error) {
+	return svc.CreateUpload(&devicefarm.CreateUploadInput{Name: aws.String(filename), Type: aws.String(typeUpload), ProjectArn: aws.String(*project.Arn)})
 }
 
-func getDevicePool(devicePoolname string, project *devicefarm.Project, svc *devicefarm.DeviceFarm) *devicefarm.DevicePool {
+func getDevicePool(devicePoolname string, project *devicefarm.Project, svc *devicefarm.DeviceFarm) (*devicefarm.DevicePool, error) {
 	result, err := svc.ListDevicePools(&devicefarm.ListDevicePoolsInput{Arn: aws.String(*project.Arn)})
 	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
+		return nil, err
 	}
 
 	for _, pool := range result.DevicePools {
 		if strings.ToUpper(*pool.Name) == devicePoolname {
-			return pool
+			return pool, nil
 		}
 	}
-
-	fmt.Println("There was no device pool with that name")
-	os.Exit(1)
-	return nil
+	return nil, fmt.Errorf("There was no device pool with the name %s", devicePoolname)
 }
 
-func getTestProject(testProjectName string, svc *devicefarm.DeviceFarm) *devicefarm.Project {
+func getTestProject(testProjectName string, svc *devicefarm.DeviceFarm) (*devicefarm.Project, error) {
 	result, err := svc.ListProjects(nil)
 	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
+		return nil, err
 	}
 
 	for _, project := range result.Projects {
 		if *project.Name == testProjectName {
-			return project
+			return project, nil
 		}
 	}
 
-	fmt.Println("There was no project with that name")
-	os.Exit(1)
-	return nil
+	return nil, fmt.Errorf("There was no project with the name %s", testProjectName)
 }
