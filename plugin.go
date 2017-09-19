@@ -34,7 +34,7 @@ type Plugin struct {
 func (p *Plugin) Exec() error {
 	fmt.Println("Begin to schedule test run in AWS Device Farm")
 
-	// create the client
+	// create the configuration
 	conf := &aws.Config{
 		Region: aws.String(p.Region),
 	}
@@ -46,42 +46,19 @@ func (p *Plugin) Exec() error {
 		return errors.New("Security issue: When using instance role you must have the yaml verified")
 	}
 
-	// log.WithFields(log.Fields{
-	// 	"Key":            p.Key,
-	// 	"Secret-name":    p.Secret,
-	// 	"Region":         p.Region,
-	// 	"AppDirectory":   p.AppDirectory,
-	// 	"AppName":        p.AppName,
-	// 	"TestsDirectory": p.TestsDirectory,
-	// 	"TestsName":      p.TestsName,
-	// 	"TestProject":    p.TestProject,
-	// 	"DevicePoolname": p.DevicePoolname,
-	// 	"UploadAppType":  p.UploadAppType,
-	// 	"TestTypeUpload": p.TestTypeUpload,
-	// 	"TestTypeRun":    p.TestTypeRun,
-	// }).Info("Attempting to create and update")
-	fmt.Println("Credentials", conf.Credentials)
-	cred, _ := conf.Credentials.Get()
-
-	fmt.Println("AccessKeyID", cred.AccessKeyID)
-	fmt.Println("SecretAccessKey", cred.SecretAccessKey)
-	fmt.Println("ProviderName", cred.ProviderName)
-	fmt.Println("path.Base(p.TestsName)", path.Base(p.TestsName))
-	fmt.Println("path.Base(p.AppName)", path.Base(p.AppName))
-
-	fmt.Println("2")
-
+	//create Device Farmr service
 	svc := devicefarm.New(session.New(), conf)
-	fmt.Println("3")
 
+	//Get AWS Test project
 	project := getTestProject(p.TestProject, svc)
-	fmt.Println("project", project)
+	//Get AWS device farm Device pool used for this test
 	pool := getDevicePool(p.DevicePoolname, project, svc)
-	fmt.Println("pool", pool)
 
+	//Create test upload object
 	uploadResponseTests := createUpload(path.Base(p.TestsName), p.TestTypeUpload, project, svc)
-	fmt.Println("uploadResponseTests", uploadResponseTests)
+	//Upload the tests package to AWS
 	uploadFile(p.TestsName, uploadResponseTests, svc)
+	//Wait until AWS finishes to process the file
 	testsSuccededToUpload := false
 	for {
 		testsSuccededToUpload = checkToSeeIfFileSucceeded(uploadResponseTests, svc)
@@ -89,10 +66,11 @@ func (p *Plugin) Exec() error {
 			break
 		}
 	}
-
+	//Create app upload object
 	uploadResponseApp := createUpload(path.Base(p.AppName), p.UploadAppType, project, svc)
-	fmt.Println("uploadResponseApp", uploadResponseApp)
+	//Upload the app file to AWS
 	uploadFile(p.AppName, uploadResponseApp, svc)
+	//Wait until AWS finishes to process the file
 	appSuccededToUpload := false
 	for {
 		appSuccededToUpload = checkToSeeIfFileSucceeded(uploadResponseApp, svc)
@@ -100,8 +78,8 @@ func (p *Plugin) Exec() error {
 			break
 		}
 	}
-	run := scheduleRun("Run", pool, project, uploadResponseApp, uploadResponseTests, p.TestTypeRun, svc)
-	fmt.Println("Run", run)
+	//Scedule the test run
+	scheduleRun("Run", pool, project, uploadResponseApp, uploadResponseTests, p.TestTypeRun, svc)
 	fmt.Println("Schedule test run completed")
 
 	return nil
@@ -128,7 +106,6 @@ func checkToSeeIfFileSucceeded(uploadResponse *devicefarm.CreateUploadOutput, sv
 		fmt.Println(err.Error())
 		os.Exit(1)
 	}
-	fmt.Println("resultado", result)
 
 	if strings.ToUpper(*result.Upload.Status) == "SUCCEEDED" {
 		return true
@@ -140,7 +117,6 @@ func checkToSeeIfFileSucceeded(uploadResponse *devicefarm.CreateUploadOutput, sv
 }
 
 func uploadFile(file string, uploadResponse *devicefarm.CreateUploadOutput, svc *devicefarm.DeviceFarm) {
-	fmt.Println("file", file)
 	c := exec.Command("curl", "-T", file, *uploadResponse.Upload.Url)
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
@@ -149,7 +125,6 @@ func uploadFile(file string, uploadResponse *devicefarm.CreateUploadOutput, svc 
 		fmt.Println("Error: ", err)
 		os.Exit(1)
 	}
-	fmt.Println("Listo")
 }
 
 func createUpload(filename string, typeUpload string, project *devicefarm.Project, svc *devicefarm.DeviceFarm) *devicefarm.CreateUploadOutput {
