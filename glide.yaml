@@ -1,8 +1,0 @@
-package: .
-import:
-- package: github.com/aws/aws-sdk-go
-  version: v1.10.46
-  subpackages:
-  - aws
-  - aws/session
-  - service/devicefarm
