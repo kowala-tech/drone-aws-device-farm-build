@@ -32,3 +32,36 @@ pipeline:
       - GOARM=7
     commands:
       - go build -v -ldflags "-X main.build=${DRONE_BUILD_NUMBER}" -a -o release/linux/arm/drone-aws-device-farm-build
+
+  publish_linux_amd64:
+    image: plugins/docker
+    username: xap5xap
+    repo: kowalatech/drone-aws-device-farm-build
+    tags: [ latest, 1.0.0, 1.0, 1 ]
+    secrets: [ docker_password ]
+    dockerfile: Dockerfile
+    when:
+      branch: master
+      event: push
+
+  publish_linux_arm64:
+    image: plugins/docker
+    username: xap5xap
+    repo: kowalatech/drone-aws-device-farm-build
+    tags: [ linux-arm64 ]
+    secrets: [ docker_password ]
+    dockerfile: Dockerfile.arm64
+    when:
+      branch: master
+      event: push
+
+  publish_linux_arm:
+    image: plugins/docker
+    username: xap5xap
+    repo: kowalatech/drone-aws-device-farm-build
+    tags: [ linux-arm ]
+    secrets: [ docker_password ]
+    dockerfile: Dockerfile.arm
+    when:
+      branch: master
+      event: push
