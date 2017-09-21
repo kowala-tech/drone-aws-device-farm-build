@@ -152,7 +152,7 @@ func getDevicePool(devicePoolname string, project *devicefarm.Project, svc *devi
 	}
 
 	for _, pool := range result.DevicePools {
-		if strings.ToUpper(*pool.Name) == devicePoolname {
+		if strings.ToUpper(*pool.Name) == strings.ToUpper(devicePoolname) {
 			return pool, nil
 		}
 	}
