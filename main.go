@@ -69,15 +69,15 @@ func main() {
 			Usage:  "Type of the tests",
 			EnvVar: "PLUGIN_TEST_TYPE_RUN",
 		},
-		cli.BoolTFlag{
-			Name:   "yaml-verified",
-			Usage:  "Ensure the yaml was signed",
-			EnvVar: "DRONE_YAML_VERIFIED",
-		},
 		cli.StringFlag{
 			Name:   "run-name",
 			Usage:  "Name of the run",
 			EnvVar: "PLUGIN_RUN_NAME",
+		},
+		cli.BoolTFlag{
+			Name:   "yaml-verified",
+			Usage:  "Ensure the yaml was signed",
+			EnvVar: "DRONE_YAML_VERIFIED",
 		},
 	}
 	if err := app.Run(os.Args); err != nil {
