@@ -18,7 +18,7 @@ Build the docker image with the following commands:
 
 ```
 drone exec
-docker build --rm=true -t plugins/drone-aws-device-farm .
+docker build --rm=true -t kowalatech/drone-aws-device-farm-build .
 ```
 ## Usage
 
@@ -38,5 +38,5 @@ docker run --rm \
   -e PLUGIN_TEST_TYPE_RUN=<testtyperun> \
   -v $(pwd):$(pwd) \
   -w $(pwd) \
-  plugins/drone-aws-device-farm
+  kowalatech/drone-aws-device-farm-build
 ```

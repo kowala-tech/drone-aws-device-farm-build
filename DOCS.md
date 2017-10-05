@@ -19,7 +19,7 @@ The following is a sample configuration in your .drone.yml file:
 ```yaml
 deploy:
   behavior-testing:
-        image: plugins/drone-aws-device-farm
+        image: kowalatech/drone-aws-device-farm-build
         access_key: hjwgjhgjhwe
         secret_key: werkjhwekjrhweuyiuwerbyiuweyrui
         region: us-west-2
