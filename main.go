@@ -74,6 +74,11 @@ func main() {
 			Usage:  "Ensure the yaml was signed",
 			EnvVar: "DRONE_YAML_VERIFIED",
 		},
+		cli.StringFlag{
+			Name:   "run-name",
+			Usage:  "Name of the run",
+			EnvVar: "PLUGIN_RUN_NAME",
+		},
 	}
 	if err := app.Run(os.Args); err != nil {
 		log.Fatal(err)
@@ -92,6 +97,7 @@ func run(c *cli.Context) error {
 		TestTypeUpload: c.String("test-type-upload"),
 		TestTypeRun:    c.String("test-type-run"),
 		YamlVerified:   c.BoolT("yaml-verified"),
+		RunName:        c.String("run-name"),
 	}
 
 	return plugin.Exec()

@@ -29,6 +29,7 @@ type Plugin struct {
 	UploadAppType  string
 	TestTypeUpload string
 	TestTypeRun    string
+	RunName        string
 }
 
 // Exec runs the plugin
@@ -69,7 +70,7 @@ func (p *Plugin) Exec() error {
 		return err
 	}
 	//Schedule the test run
-	_, err = scheduleRun("Run", pool, project, uploadResponseApp, uploadResponseTests, p.TestTypeRun, svc)
+	_, err = scheduleRun(p.RunName, pool, project, uploadResponseApp, uploadResponseTests, p.TestTypeRun, svc)
 	if err != nil {
 		return err
 	}
